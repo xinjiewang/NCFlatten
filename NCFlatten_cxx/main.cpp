@@ -44,6 +44,7 @@ cxxopts::ParseResult CreateOptions(int argc, char** argv)
 		|| ret.count("help"))
 	{
 		std::cout << options.help() << std::endl;
+		system("pause");
 		exit(0);
 	}
 
@@ -71,6 +72,7 @@ void Process(std::string filename, std::string output_path, std::vector<std::str
 	catch (const std::exception& e)
 	{
 		std::cout << "reading error: " << e.what() << std::endl;
+		system("pause");
 		exit(-1);
 	}
 
@@ -116,6 +118,8 @@ void Process(std::string filename, std::string output_path, std::vector<std::str
 				{
 					if (range[0] < 0) range[0] = 0;
 					if (range[1] < 0) range[1] = 0;
+					if (range[2] < range[0]) range[2] = range[0];
+					if (range[3] < range[1]) range[3] = range[1];
 					if (range[2] >= data_lantitude) range[2] = data_lantitude - 1;
 					if (range[3] >= data_longtitude) range[3] = data_longtitude - 1;
 				}
@@ -194,5 +198,6 @@ int main(int argc, char** argv)
 		std::cout << std::endl;
 	}
 
+	system("pause");
 	return 0;
 }
