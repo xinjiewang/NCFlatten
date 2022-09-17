@@ -131,7 +131,7 @@ void Process(std::string filename, std::string output_path, std::vector<std::str
 		std::vector<size_t> start = { 0, 0, 0 };
 		std::vector<size_t> count = { data_time, 1, 1 };
 
-		std::cout << "start writing into txt" << std::endl;
+		std::cout << "start writing into txt, please waiting..." << std::endl;
 
 		struct stat info;
 		if (stat(output_path.c_str(), &info) != 0)
@@ -148,6 +148,7 @@ void Process(std::string filename, std::string output_path, std::vector<std::str
 		std::ofstream outfile;
 
 		for (int i = range[0]; i <= range[2]; i++)
+		{
 			for (int j = range[1]; j <= range[3]; j++)
 			{
 				start[1] = i; start[2] = j;
@@ -164,6 +165,9 @@ void Process(std::string filename, std::string output_path, std::vector<std::str
 
 				outfile.close();
 			}
+			std::cout << "percent " << ((size_t)i - range[0]) * 100 / (range[2] - range[0]) << "%" << std::endl;
+		}
+
 
 		std::cout << "processing complete" << std::endl;
 		new_file_for_once = false;
