@@ -1,4 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS
+#include <omp.h>
 #include <iostream>
 #include <netcdfcpp.h>
 #include <string>
@@ -8,9 +9,11 @@
 #if defined(_WIN32)
 #include <direct.h>   // _mkdir
 #endif
-#include <fstream>  
+#include <fstream>
 
 #include "cxxopts.h"
+
+#define NUM_THREADS 10
 
 const int MAX_VARIABLE = 2;
 const int MAX_TIME = 744;
@@ -105,6 +108,7 @@ void Process(std::string filename, std::string output_path, std::vector<std::str
 			if (init_for_once)
 			{
 				// Assume all the output variable has 3 dimensions: time, lantitude, longtitude.
+				//data_time = 6;
 				data_time = data.getDim(0).getSize();
 				data_lantitude = data.getDim(1).getSize();
 				data_longtitude = data.getDim(2).getSize();
@@ -127,9 +131,8 @@ void Process(std::string filename, std::string output_path, std::vector<std::str
 			}
 		}
 
-		short datas_value[MAX_VARIABLE][MAX_TIME];
-		std::vector<size_t> start = { 0, 0, 0 };
-		std::vector<size_t> count = { data_time, 1, 1 };
+		size_t current_longtitude_count = range[3] - range[1] + 1;
+		std::vector<size_t> count = { data_time, 1, current_longtitude_count };
 
 		std::cout << "start writing into txt, please waiting..." << std::endl;
 
@@ -145,27 +148,61 @@ void Process(std::string filename, std::string output_path, std::vector<std::str
 			if (check != 0) throw std::invalid_argument(("can not access " + output_path + ", error code=" + std::to_string(check)).c_str());
 		}
 
-		std::ofstream outfile;
-
-		for (int i = range[0]; i <= range[2]; i++)
+//#pragma omp parallel for
+		for (int i = range[0]; i <= range[2]; i ++)
 		{
-			for (int j = range[1]; j <= range[3]; j++)
+			//short datas_value[MAX_VARIABLE][MAX_TIME][MAX_LONGT];
+			//std::vector<std::vector<std::vector<short>>> datas_value(datas.size(), std::vector<std::vector<short>>(data_time, std::vector<short>(data_longtitude, 0)));
+			//std::vector<std::vector<short>> datas_value(data_time, std::vector<short>(data_longtitude, 0));
+			std::vector<int*> datas_value(datas.size());
+			
+			//printf("i = %d, I am Thread %d\n", i, omp_get_thread_num());
+			std::vector<size_t> start = { 0, (size_t)i, range[1] };
+			for (int v = 0; v < datas.size(); v ++)
 			{
-				start[1] = i; start[2] = j;
-				for (int v = 0; v < datas.size(); v++)
-					datas[v].getVar(start, count, datas_value[v]);
+				//std::ofstream outfile(output_path + "/test" +  std::to_string(i) + "_" + std::to_string(v) + ".txt", new_file_for_once ? std::ios_base::out : std::ios_base::app);
 
-				outfile.open(output_path + "/" + std::to_string(i) + "_" + std::to_string(j) + ".txt", new_file_for_once ? std::ios_base::out : std::ios_base::app);
-				for (int t = 0; t < data_time; t++)
+				datas_value[v] = new int[data_time * current_longtitude_count];
+				datas[v].getVar(start, count, datas_value[v]);
+				//outfile << "start: " << start[0] << " " << start[1] << " " << start[2] << " count: " << count[0] << " " << count[1] << " " << count[2] << std::endl;
+				//for (int x = 0; x < data_time * current_longtitude_count; x ++)
+					//printf("%d ", datas_value[v][x]);
+				//outfile << std::endl;
+
+				//outfile.close();
+			}
+
+#pragma omp parallel for
+			for (int j = range[1]; j <= range[3]; j ++)
+			{
+				//short datas_value[MAX_VARIABLE][MAX_TIME];
+				//std::vector<size_t> start = { 0, (size_t)i, (size_t)j };
+				//for (int v = 0; v < datas.size(); v++)
+				//	datas[v].getVar(start, count, datas_value[v]);
+
+				std::ofstream outfile(output_path + "/" + std::to_string(i) + "_" + std::to_string(j) + ".txt", new_file_for_once ? std::ios_base::out : std::ios_base::app);
+
+				//for (int v = 0; v < datas.size(); v ++)
+				//	for (int x = 0; x < data_time * current_longtitude_count; x ++)
+				//		outfile << datas_value[v][x] << " ";
+				//outfile << std::endl;
+
+				for (int t = 0; t < data_time; t ++)
 				{
-					for (int v = 0; v < datas.size(); v++)
-						outfile << datas_value[v][t] * scales[v] + offsets[v] << " ";
+					for (int v = 0; v < datas.size(); v ++)
+						outfile << ((datas_value[v])[t * current_longtitude_count + j - range[1]]) * scales[v] + offsets[v] << " ";
+						//outfile << "v: " << v << " t: " << t << " j: " << j << " offset: " << t * current_longtitude_count + j - range[1] << " value: " << (datas_value[v][t * current_longtitude_count + j - range[1]]) << " ";
+
 					outfile << std::endl;
 				}
 
 				outfile.close();
 			}
-			std::cout << "percent " << ((size_t)i - range[0]) * 100 / (range[2] - range[0]) << "%" << std::endl;
+
+			for (int v = 0; v < datas.size(); v++)
+				delete datas_value[v];
+
+			std::cout << "task #" << i - range[0] << " complete" << std::endl;
 		}
 
 
